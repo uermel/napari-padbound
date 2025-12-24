@@ -1,0 +1,96 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "napari-padbound"
+dynamic = ["version"]
+description = "A napari plugin for padbound"
+readme = "README.md"
+license = "BSD-3-Clause"
+requires-python = ">=3.9"
+authors = [
+    { name = "Utz H. Ermel", email = "utz@ermel.me" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: napari",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = [
+    "napari",
+    "numpy",
+    "magicgui",
+    "qtpy",
+    "padbound",
+]
+
+[project.optional-dependencies]
+testing = [
+    "tox",
+    "pytest",
+    "pytest-cov",
+    "pytest-qt",
+    "napari",
+    "pyqt5",
+]
+dev = [
+    "black",
+    "ruff",
+    "pre-commit",
+]
+
+[project.entry-points."napari.manifest"]
+napari-padbound = "napari_padbound:napari.yaml"
+
+[project.urls]
+"Bug Tracker" = "https://github.com/your-username/napari-padbound/issues"
+"Documentation" = "https://github.com/your-username/napari-padbound#README.md"
+"Source Code" = "https://github.com/your-username/napari-padbound"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/napari_padbound/_version.py"
+
+[tool.hatch.build.targets.sdist]
+include = ["/src"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/napari_padbound"]
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 120
+lint.select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+    "B",    # flake8-bugbear
+    "I",    # isort
+]
+lint.ignore = [
+    "E501",  # line too long (handled by black)
+]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-v --color=yes"
+testpaths = ["src/napari_padbound/_tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

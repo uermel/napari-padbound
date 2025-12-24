@@ -1,0 +1,12 @@
+name: napari-padbound
+display_name: padbound
+visibility: public
+categories: []
+contributions:
+  commands:
+    - id: napari-padbound.make_widget
+      python_name: napari_padbound:PadboundWidget
+      title: padbound
+  widgets:
+    - command: napari-padbound.make_widget
+      display_name: padbound
