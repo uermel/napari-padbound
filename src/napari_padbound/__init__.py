@@ -3,8 +3,25 @@ try:
 except ImportError:
     __version__ = "unknown"
 
-from .label_controller import LabelPaletteController
-from .slice_controller import MidiSliceController
+from .control_mapper import ControlMapper, ControlMapping
+from .label_feedback import (
+    LabelFeedbackStrategy,
+    NoFeedbackStrategy,
+    RGBColorStrategy,
+    ToggleStrategy,
+    create_feedback_strategy,
+)
+from .viewer_controller import ViewerController
 from .widget import PadboundWidget
 
-__all__ = ("LabelPaletteController", "MidiSliceController", "PadboundWidget")
+__all__ = (
+    "ControlMapper",
+    "ControlMapping",
+    "LabelFeedbackStrategy",
+    "NoFeedbackStrategy",
+    "RGBColorStrategy",
+    "ToggleStrategy",
+    "create_feedback_strategy",
+    "ViewerController",
+    "PadboundWidget",
+)
