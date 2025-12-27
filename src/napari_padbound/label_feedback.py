@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from padbound import Controller
+
+logger = logging.getLogger(__name__)
 
 
 class LabelFeedbackStrategy(ABC):
@@ -48,6 +51,9 @@ class RGBColorStrategy(LabelFeedbackStrategy):
         self.controller = controller
         self.pad_ids = pad_ids
         self.supports_pulse = supports_pulse
+        # Debouncing: track last state to skip redundant updates
+        self._last_selected: int | None = None
+        self._last_colors: list[str] | None = None
 
     def initialize(self, label_colors: list[str]) -> None:
         """Initialize pads with label colors."""
@@ -56,24 +62,31 @@ class RGBColorStrategy(LabelFeedbackStrategy):
     def update_feedback(self, selected_label: int, label_colors: list[str]) -> None:
         """Update pad colors and highlight selected label.
 
-        Uses set_state() for each pad - works on ALL RGB controllers regardless
-        of whether they support persistent configuration.
+        Uses set_states() batch API for efficient multi-pad updates. This allows
+        hardware-specific optimizations (e.g., single SysEx for LPD8, proper timing
+        for APC mini) while keeping this code controller-agnostic.
 
         Args:
             selected_label: Index of the currently selected label.
             label_colors: List of hex color strings for each label.
         """
+        # Debouncing: skip if nothing changed (prevents duplicate updates)
+        if (selected_label == self._last_selected and
+            label_colors == self._last_colors):
+            return
+
+        # Update tracking state
+        self._last_selected = selected_label
+        self._last_colors = list(label_colors)  # Copy to avoid mutation issues
+
+        updates = []
         for i, pad_id in enumerate(self.pad_ids):
             color = label_colors[i] if i < len(label_colors) else "#808080"
             led_mode = (
                 "pulse" if (i == selected_label and self.supports_pulse) else "solid"
             )
-            self.controller.set_state(
-                pad_id,
-                is_on=True,
-                color=color,
-                led_mode=led_mode,
-            )
+            updates.append((pad_id, {"is_on": True, "color": color, "led_mode": led_mode}))
+        self.controller.set_states(updates)
 
 
 class ToggleStrategy(LabelFeedbackStrategy):
@@ -100,18 +113,18 @@ class ToggleStrategy(LabelFeedbackStrategy):
     def update_feedback(self, selected_label: int, label_colors: list[str]) -> None:
         """Update toggle states - only selected label is ON.
 
+        Uses set_states() batch API for efficient multi-pad updates.
+
         Args:
             selected_label: Index of the currently selected label.
             label_colors: Ignored for toggle strategy.
         """
+        updates = []
         for i, pad_id in enumerate(self.pad_ids):
             is_selected = i == selected_label
             led_mode = "pulse" if (is_selected and self.supports_pulse) else "solid"
-            self.controller.set_state(
-                pad_id,
-                is_on=is_selected,
-                led_mode=led_mode,
-            )
+            updates.append((pad_id, {"is_on": is_selected, "led_mode": led_mode}))
+        self.controller.set_states(updates)
 
 
 class NoFeedbackStrategy(LabelFeedbackStrategy):

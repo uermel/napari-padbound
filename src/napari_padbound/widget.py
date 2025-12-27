@@ -105,13 +105,17 @@ class PadboundWidget(QWidget):
             return
         self._cleanup_done = True
 
-        if self._timer:
-            self._timer.stop()
-            self._timer = None
+        try:
+            if self._timer:
+                self._timer.stop()
+                self._timer = None
 
-        if self._midi_controller:
-            self._midi_controller.disconnect()
-            self._midi_controller = None
+            if self._midi_controller:
+                self._midi_controller.disconnect()
+                self._midi_controller = None
+        except RuntimeError:
+            # Qt objects may already be deleted during interpreter shutdown
+            pass
 
     def closeEvent(self, event) -> None:
         """Clean up when widget is closed."""

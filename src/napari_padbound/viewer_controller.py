@@ -166,6 +166,7 @@ class ViewerController:
 
     def _on_label_select(self, state: ControlState, label_index: int) -> None:
         """Handle pad press - select the corresponding label."""
+        print("_on_label_select", label_index)
         if not state.is_on:  # Only act on press, not release
             return
         if self._labels_layer is None:
@@ -176,6 +177,7 @@ class ViewerController:
 
     def _update_label_feedback(self) -> None:
         """Update pad feedback to reflect selected label."""
+        print("_update_label_feedback")
         if self._labels_layer is None:
             return
 
@@ -221,6 +223,7 @@ class ViewerController:
 
     def _on_layer_inserted(self, event) -> None:
         """Handle new layer insertion."""
+        print("_on_layer_inserted")
         layer = event.value
         if isinstance(layer, napari.layers.Labels):
             self._set_active_labels_layer(layer)
@@ -228,6 +231,7 @@ class ViewerController:
 
     def _on_selection_changed(self, event) -> None:
         """Handle active layer selection change."""
+        print("_on_selection_changed")
         self._check_active_layer()
         self._update_slice_range()
 
@@ -239,6 +243,7 @@ class ViewerController:
 
     def _set_active_labels_layer(self, layer: napari.layers.Labels) -> None:
         """Set the active labels layer and update feedback."""
+        print("_set_active_labels_layer")
         self._labels_layer = layer
         label_colors = self._get_label_colors()
         # Use actual selected label from layer, not hardcoded 0
