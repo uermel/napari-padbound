@@ -27,7 +27,7 @@ class ControlMapper:
     Automatically assigns controls based on their type and capabilities:
     - Faders preferred for coarse slice control
     - Knobs/encoders for fine slice, brush size, zoom
-    - Pads for label selection (up to 8)
+    - Pads for label selection
     """
 
     def __init__(self, controller: Controller) -> None:
@@ -66,8 +66,8 @@ class ControlMapper:
         if len(continuous) >= 4:
             mapping.zoom = continuous[3].control_id
 
-        # Assign pads for label selection (up to 8)
-        mapping.label_pads = [p.control_id for p in pads[:8]]
+        # Assign pads for label selection
+        mapping.label_pads = [p.control_id for p in pads]
 
         return mapping
 

@@ -69,19 +69,13 @@ class ViewerController:
     def _setup_callbacks(self) -> None:
         """Register callbacks for mapped controls."""
         if self.mapping.coarse_slice:
-            self.midi_controller.on_control(
-                self.mapping.coarse_slice, self._on_coarse_change
-            )
+            self.midi_controller.on_control(self.mapping.coarse_slice, self._on_coarse_change)
         if self.mapping.fine_slice:
-            self.midi_controller.on_control(
-                self.mapping.fine_slice, self._on_fine_change
-            )
+            self.midi_controller.on_control(self.mapping.fine_slice, self._on_fine_change)
         if self.mapping.zoom:
             self.midi_controller.on_control(self.mapping.zoom, self._on_zoom_change)
         if self.mapping.brush_size:
-            self.midi_controller.on_control(
-                self.mapping.brush_size, self._on_brush_change
-            )
+            self.midi_controller.on_control(self.mapping.brush_size, self._on_brush_change)
 
         # Register pad callbacks for label selection
         for i, pad_id in enumerate(self.mapping.label_pads):
@@ -157,9 +151,7 @@ class ViewerController:
             return
 
         normalized = state.normalized_value
-        brush_size = self.MIN_BRUSH_SIZE * (
-            (self.MAX_BRUSH_SIZE / self.MIN_BRUSH_SIZE) ** normalized
-        )
+        brush_size = self.MIN_BRUSH_SIZE * ((self.MAX_BRUSH_SIZE / self.MIN_BRUSH_SIZE) ** normalized)
         self._labels_layer.brush_size = int(brush_size)
 
     # --- Label selection ---
@@ -167,8 +159,6 @@ class ViewerController:
     def _on_label_select(self, state: ControlState, label_index: int) -> None:
         """Handle pad press - select the corresponding label."""
         print("_on_label_select", label_index)
-        if not state.is_on:  # Only act on press, not release
-            return
         if self._labels_layer is None:
             return
 
@@ -185,8 +175,26 @@ class ViewerController:
         selected = self._labels_layer.selected_label
         self.label_feedback.update_feedback(selected, label_colors)
 
+    def _connect_layer_events(self, layer: napari.layers.Labels) -> None:
+        """Connect to a Labels layer's events."""
+        layer.events.colormap.connect(self._on_colormap_changed)
+        layer.events.selected_label.connect(self._on_selected_label_changed)
+
+    def _disconnect_layer_events(self, layer: napari.layers.Labels) -> None:
+        """Disconnect from a Labels layer's events."""
+        layer.events.colormap.disconnect(self._on_colormap_changed)
+        layer.events.selected_label.disconnect(self._on_selected_label_changed)
+
+    def _on_colormap_changed(self, event) -> None:
+        """Handle colormap changes - update pad colors."""
+        self._update_label_feedback()
+
+    def _on_selected_label_changed(self, event) -> None:
+        """Handle selected label changes from napari UI - update pad feedback."""
+        self._update_label_feedback()
+
     def _get_label_colors(self) -> list[str]:
-        """Get hex colors for labels 0-7 from the active layer."""
+        """Get hex colors for labels from the active layer."""
         colors = []
         for i in range(len(self.mapping.label_pads)):
             if i == 0:
@@ -244,8 +252,17 @@ class ViewerController:
     def _set_active_labels_layer(self, layer: napari.layers.Labels) -> None:
         """Set the active labels layer and update feedback."""
         print("_set_active_labels_layer")
+
+        # Disconnect from previous layer's events (if any)
+        if self._labels_layer is not None:
+            self._disconnect_layer_events(self._labels_layer)
+
         self._labels_layer = layer
+
+        # Connect to new layer's events
+        self._connect_layer_events(layer)
+
+        # Initial update
         label_colors = self._get_label_colors()
-        # Use actual selected label from layer, not hardcoded 0
         selected = layer.selected_label
         self.label_feedback.update_feedback(selected, label_colors)

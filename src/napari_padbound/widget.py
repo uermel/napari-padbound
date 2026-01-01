@@ -56,9 +56,7 @@ class PadboundWidget(QWidget):
             self._midi_controller = Controller(plugin="auto", auto_connect=True)
 
             # Create unified viewer controller
-            self._viewer_controller = ViewerController(
-                self.viewer, self._midi_controller
-            )
+            self._viewer_controller = ViewerController(self.viewer, self._midi_controller)
 
             # Start MIDI event polling
             self._start_event_loop()
