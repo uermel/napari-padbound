@@ -43,6 +43,7 @@ class ControlMapper:
         """Auto-discover and map controls based on capabilities.
 
         Priority for continuous controls: fader > knob > encoder
+        All mapped controls come from the same bank (for multi-bank controllers).
 
         Returns:
             ControlMapping with assigned control IDs.
@@ -54,6 +55,16 @@ class ControlMapper:
         knobs = [c for c in self.controls if c.category == "knob"]
         encoders = [c for c in self.controls if c.category == "encoder"]
         pads = [c for c in self.controls if c.category == "pad"]
+
+        # Determine primary bank from first fader (or first continuous control)
+        all_continuous = faders + knobs + encoders
+        primary_bank = all_continuous[0].bank_id if all_continuous else None
+
+        # Filter to primary bank only (None matches None for bankless controllers)
+        faders = [c for c in faders if c.bank_id == primary_bank]
+        knobs = [c for c in knobs if c.bank_id == primary_bank]
+        encoders = [c for c in encoders if c.bank_id == primary_bank]
+        pads = [c for c in pads if c.bank_id == primary_bank]
 
         # Assign continuous controls (priority: fader > knob > encoder)
         continuous = faders + knobs + encoders

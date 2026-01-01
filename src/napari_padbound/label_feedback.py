@@ -229,7 +229,8 @@ def create_feedback_strategy(
         return NoFeedbackStrategy()
 
     caps = first_pad.capabilities
-    supports_pulse = LEDAnimationType.PULSE in [mode.animation_type for mode in caps.supported_led_modes]
+    supported_modes = caps.supported_led_modes or []
+    supports_pulse = LEDAnimationType.PULSE in [mode.animation_type for mode in supported_modes]
 
     if caps.supports_color and caps.color_mode == "rgb":
         return RGBColorStrategy(controller, pad_ids, supports_pulse)
