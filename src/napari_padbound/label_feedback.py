@@ -63,9 +63,8 @@ class RGBColorStrategy(LabelFeedbackStrategy):
     def update_feedback(self, selected_label: int, label_colors: list[str]) -> None:
         """Update pad colors and highlight selected label.
 
-        Updates control definitions with new colors/LED modes, then sends
-        visual feedback to the hardware. This ensures toggle behavior uses
-        correct colors when pads are pressed.
+        Optimized to only reconfigure when colors change, not on every selection.
+        Uses set_states() for selection-only changes (much faster, no state reset).
 
         Uses set_states() batch API for efficient multi-pad updates. This allows
         hardware-specific optimizations (e.g., single SysEx for LPD8, proper timing
@@ -75,45 +74,48 @@ class RGBColorStrategy(LabelFeedbackStrategy):
             selected_label: Index of the currently selected label.
             label_colors: List of hex color strings for each label.
         """
-        # Debouncing: skip if nothing changed (prevents duplicate updates)
-        if selected_label == self._last_selected and label_colors == self._last_colors:
+        # Check what changed
+        colors_changed = label_colors != self._last_colors
+        selection_changed = selected_label != self._last_selected
+
+        # Debouncing: skip if nothing changed
+        if not colors_changed and not selection_changed:
             return
 
         # Update tracking state
         self._last_selected = selected_label
         self._last_colors = list(label_colors)  # Copy to avoid mutation issues
 
-        # Step 1: Build config with new colors for each pad
-        # This ensures toggle behavior uses correct colors when pads are pressed
-        controls_config = {}
-        for i, pad_id in enumerate(self.pad_ids):
-            color = label_colors[i] if i < len(label_colors) else "#808080"
+        # Step 1: Only reconfigure when colors change (not on every selection)
+        if colors_changed:
+            controls_config = {}
+            for i, pad_id in enumerate(self.pad_ids):
+                color = label_colors[i] if i < len(label_colors) else "#808080"
 
-            if self.supports_pulse:
-                # OFF = solid color, ON = pulsing color
-                controls_config[pad_id] = ControlConfig(
-                    type=ControlType.TOGGLE,
-                    on_color=color,
-                    off_color=color,
-                    on_led_mode="pulse",
-                    off_led_mode="solid",
-                )
-            else:
-                # OFF = dimmed, ON = bright (use same color, hardware handles dimming)
-                controls_config[pad_id] = ControlConfig(
-                    type=ControlType.TOGGLE,
-                    on_color=color,
-                    off_color=color,
-                    on_led_mode="solid",
-                    off_led_mode="solid",
-                )
+                if self.supports_pulse:
+                    # OFF = solid color, ON = pulsing color
+                    controls_config[pad_id] = ControlConfig(
+                        type=ControlType.TOGGLE,
+                        on_color=color,
+                        off_color=color,
+                        on_led_mode="pulse",
+                        off_led_mode="solid",
+                    )
+                else:
+                    # OFF = dimmed, ON = bright (use same color, hardware handles dimming)
+                    controls_config[pad_id] = ControlConfig(
+                        type=ControlType.TOGGLE,
+                        on_color=color,
+                        off_color=color,
+                        on_led_mode="solid",
+                        off_led_mode="solid",
+                    )
 
-        # Step 2: Reconfigure to update definitions (in-memory only for performance)
-        config = ControllerConfig(controls=controls_config)
-        print(config)
-        self.controller.reconfigure(config, update_in_memory_only=False)
+            # Use in-memory only to avoid flash wear on devices with persistent config
+            config = ControllerConfig(controls=controls_config)
+            self.controller.reconfigure(config, update_in_memory_only=True)
 
-        # Step 3: Update current visual state
+        # Step 2: Always update visual state when anything changed
         updates = []
         for i, pad_id in enumerate(self.pad_ids):
             color = label_colors[i] if i < len(label_colors) else "#808080"
@@ -124,9 +126,6 @@ class RGBColorStrategy(LabelFeedbackStrategy):
                 else LEDMode(animation_type=LEDAnimationType.SOLID)
             )
             updates.append((pad_id, StateUpdate(is_on=is_selected, color=color, led_mode=led_mode)))
-        print(updates)
-        print(f"selected {selected_label}")
-        print(f"supports pulse: {self.supports_pulse}")
         self.controller.set_states(updates)
 
 
@@ -144,26 +143,12 @@ class ToggleStrategy(LabelFeedbackStrategy):
         self.controller = controller
         self.pad_ids = pad_ids
         self.supports_pulse = supports_pulse
+        self._initialized = False  # Track if initial configuration done
+        self._last_selected: int | None = None  # Track for debouncing
 
     def initialize(self, label_colors: list[str]) -> None:
-        """Initialize pads - first pad (eraser) ON by default."""
-        self.update_feedback(0, label_colors)
-
-    def update_feedback(self, selected_label: int, label_colors: list[str]) -> None:
-        """Update toggle states - only selected label is ON.
-
-        Updates control definitions with on/off colors, then sends
-        visual feedback to the hardware. For controllers without color support,
-        uses black for OFF and white for ON.
-
-        Uses set_states() batch API for efficient multi-pad updates.
-
-        Args:
-            selected_label: Index of the currently selected label.
-            label_colors: Ignored for toggle strategy (no color support).
-        """
-        # Step 1: Build config with on/off colors for each pad
-        # OFF = black, ON = white (no color support)
+        """Initialize pads - configure once, then set first pad ON."""
+        # Configure control definitions ONCE (colors are fixed for toggle strategy)
         controls_config = {}
         for pad_id in self.pad_ids:
             controls_config[pad_id] = ControlConfig(
@@ -174,11 +159,40 @@ class ToggleStrategy(LabelFeedbackStrategy):
                 off_led_mode="solid",
             )
 
-        # Step 2: Reconfigure to update definitions (in-memory only for performance)
         config = ControllerConfig(controls=controls_config)
         self.controller.reconfigure(config, update_in_memory_only=True)
+        self._initialized = True
 
-        # Step 3: Update current visual state
+        # Set initial visual state (first pad = eraser)
+        self._update_visual_state(0)
+        self._last_selected = 0
+
+    def update_feedback(self, selected_label: int, label_colors: list[str]) -> None:
+        """Update toggle states - only selected label is ON.
+
+        Optimized to only update visual state via set_states(), never reconfigure
+        (colors are fixed for toggle strategy).
+
+        Args:
+            selected_label: Index of the currently selected label.
+            label_colors: Ignored for toggle strategy (no color support).
+        """
+        # Debouncing: skip if selection unchanged
+        if selected_label == self._last_selected:
+            return
+
+        self._last_selected = selected_label
+
+        # Ensure initialized (fallback for edge cases)
+        if not self._initialized:
+            self.initialize(label_colors)
+            return
+
+        # Only update visual state (no reconfigure needed - colors are fixed)
+        self._update_visual_state(selected_label)
+
+    def _update_visual_state(self, selected_label: int) -> None:
+        """Update visual state for all pads based on selection."""
         updates = []
         for i, pad_id in enumerate(self.pad_ids):
             is_selected = i == selected_label
