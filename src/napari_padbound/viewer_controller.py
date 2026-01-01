@@ -5,9 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import napari
+from padbound.config import BankConfig, ControllerConfig
+from padbound.logging_config import get_logger
 
 from napari_padbound.control_mapper import ControlMapper
-from napari_padbound.label_feedback import create_feedback_strategy
+from napari_padbound.label_feedback import NoFeedbackStrategy, create_feedback_strategy
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from padbound import Controller
@@ -58,6 +62,12 @@ class ViewerController:
             midi_controller,
             self.mapping.label_pads,
         )
+
+        # Configure MOMENTARY mode for controllers without LED feedback
+        # This ensures pads work as discrete actions (press = select) rather than
+        # toggles (which would require manual deselection since we can't turn them off)
+        if isinstance(self.label_feedback, NoFeedbackStrategy) and self.mapping.label_pads:
+            self._configure_momentary_mode_for_no_feedback()
 
         self._setup_callbacks()
         self._setup_napari_events()
@@ -266,3 +276,34 @@ class ViewerController:
         label_colors = self._get_label_colors()
         selected = layer.selected_label
         self.label_feedback.update_feedback(selected, label_colors)
+
+    # --- No-feedback controller configuration ---
+
+    def _configure_momentary_mode_for_no_feedback(self) -> None:
+        """Configure controller pads to MOMENTARY mode when no LED feedback available.
+
+        Controllers without LED feedback (like Xjam) work better with MOMENTARY pads
+        because we cannot programmatically turn off toggle pads - users would have to
+        manually press each pad again to deselect.
+        """
+        if not self.midi_controller.is_connected:
+            return
+
+        # Extract unique bank IDs from the control definitions
+        controls = self.midi_controller.get_controls()
+        bank_ids = list({c.bank_id for c in controls if c.bank_id is not None})
+
+        if not bank_ids:
+            # Fallback for controllers without explicit bank definitions
+            bank_ids = ["bank_1"]
+
+        # Build config with toggle_mode=False for all banks
+        # Controllers like Xjam apply this globally to all pads
+        banks = {bank_id: BankConfig(controls={}, toggle_mode=False) for bank_id in bank_ids}
+
+        try:
+            config = ControllerConfig(banks=banks)
+            self.midi_controller.reconfigure(config, update_in_memory_only=False)
+            logger.info("Configured pads to MOMENTARY mode (no LED feedback available)")
+        except Exception as e:
+            logger.warning(f"Could not configure MOMENTARY mode: {e}")
