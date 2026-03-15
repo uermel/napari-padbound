@@ -94,6 +94,24 @@ class ViewerController:
                 lambda state, idx=i: self._on_label_select(state, idx),
             )
 
+        # Navigation buttons for slice stepping
+        if self.mapping.slice_up:
+            self.midi_controller.on_control(self.mapping.slice_up, self._on_slice_up)
+        if self.mapping.slice_down:
+            self.midi_controller.on_control(self.mapping.slice_down, self._on_slice_down)
+
+        # Navigation buttons for dimension rolling
+        if self.mapping.roll_left:
+            self.midi_controller.on_control(self.mapping.roll_left, self._on_roll_left)
+        if self.mapping.roll_right:
+            self.midi_controller.on_control(self.mapping.roll_right, self._on_roll_right)
+
+        # Transport buttons for undo/redo
+        if self.mapping.undo:
+            self.midi_controller.on_control(self.mapping.undo, self._on_undo)
+        if self.mapping.redo:
+            self.midi_controller.on_control(self.mapping.redo, self._on_redo)
+
     def _setup_napari_events(self) -> None:
         """Connect to napari layer events."""
         self.viewer.layers.events.inserted.connect(self._on_layer_inserted)
@@ -112,13 +130,25 @@ class ViewerController:
         self._update_viewer_slice()
 
     def _compute_slice(self) -> int:
-        """Calculate target slice from coarse + fine values."""
-        if self.max_slices > 0:
-            base_slice = int((self.coarse_value / 127) * self.max_slices)
-        else:
-            base_slice = 0
+        """Calculate target slice from coarse + fine values.
 
-        # Fine: center at 64, so 0=-64 offset, 127=+63 offset
+        Coarse control always spans the full 0 to max_slices range.
+        At coarse extremes (0 or 127), the exact endpoint is returned.
+        Fine control adds ±64 slice offset for intermediate positions.
+        """
+        if self.max_slices <= 0:
+            return 0
+
+        # Coarse extremes always return exact endpoints
+        if self.coarse_value == 0:
+            return 0
+        if self.coarse_value == 127:
+            return self.max_slices
+
+        # Coarse: full range 0 to max_slices
+        base_slice = int((self.coarse_value / 127) * self.max_slices)
+
+        # Fine: ±64 slice offset, centered at 64
         offset = self.fine_value - 64
 
         return max(0, min(self.max_slices, base_slice + offset))
@@ -131,19 +161,104 @@ class ViewerController:
         self.viewer.dims.set_current_step(self.slice_axis, target_slice)
 
     def _update_slice_range(self) -> None:
-        """Update max_slices based on active layer."""
-        active = self.viewer.layers.selection.active
-        if active is None:
-            return
+        """Update max_slices based on largest layer along slice axis.
 
-        if not isinstance(active, (napari.layers.Image, napari.layers.Labels)):
-            return
+        Scans all Image/Labels layers to find the maximum dimension
+        along the current slice axis, rather than using only the active layer.
+        """
+        max_dim = 0
 
-        if active.data.ndim < 3:
-            return
+        for layer in self.viewer.layers:
+            if not isinstance(layer, (napari.layers.Image, napari.layers.Labels)):
+                continue
+            if layer.data.ndim < 3:
+                continue
+            # Get dimension along slice axis (handle case where layer has fewer dims)
+            if self.slice_axis < layer.data.ndim:
+                dim_size = layer.data.shape[self.slice_axis]
+                max_dim = max(max_dim, dim_size)
 
-        self.slice_axis = 0
-        self.max_slices = active.data.shape[self.slice_axis] - 1
+        if max_dim > 0:
+            self.max_slices = max_dim - 1
+
+    # --- Slice stepping (button navigation) ---
+
+    def _on_slice_up(self, state: ControlState) -> None:
+        """Move slice +1 on button press."""
+        if state.value == 0:  # Ignore button release
+            return
+        if self.max_slices <= 0:
+            return
+        current = self.viewer.dims.current_step[self.slice_axis]
+        new_step = min(current + 1, self.max_slices)
+        self.viewer.dims.set_current_step(self.slice_axis, new_step)
+
+    def _on_slice_down(self, state: ControlState) -> None:
+        """Move slice -1 on button press."""
+        if state.value == 0:  # Ignore button release
+            return
+        if self.max_slices <= 0:
+            return
+        current = self.viewer.dims.current_step[self.slice_axis]
+        new_step = max(current - 1, 0)
+        self.viewer.dims.set_current_step(self.slice_axis, new_step)
+
+    # --- Dimension rolling ---
+
+    def _on_roll_left(self, state: ControlState) -> None:
+        """Roll dimensions left on button press."""
+        if state.value == 0:  # Ignore button release
+            return
+        self._roll_dims(direction=-1)
+
+    def _on_roll_right(self, state: ControlState) -> None:
+        """Roll dimensions right on button press."""
+        if state.value == 0:  # Ignore button release
+            return
+        self._roll_dims(direction=1)
+
+    def _roll_dims(self, direction: int) -> None:
+        """Roll dimension order (cycles XY -> YZ -> XZ views).
+
+        Args:
+            direction: -1 for left roll, +1 for right roll.
+        """
+        current_order = list(self.viewer.dims.order)
+        ndims = len(current_order)
+
+        if ndims < 3:
+            return  # Nothing to roll for 2D data
+
+        if direction > 0:
+            # Roll right: last element moves to front
+            new_order = [current_order[-1]] + current_order[:-1]
+        else:
+            # Roll left: first element moves to end
+            new_order = current_order[1:] + [current_order[0]]
+
+        self.viewer.dims.order = tuple(new_order)
+
+        # Update slice axis to first non-displayed dimension
+        self.slice_axis = new_order[0]
+        self._update_slice_range()
+
+    # --- Undo/Redo ---
+
+    def _on_undo(self, state: ControlState) -> None:
+        """Trigger undo on the active Labels layer."""
+        if state.value == 0:  # Ignore button release
+            return
+        if self._labels_layer is None:
+            return
+        self._labels_layer.undo()
+
+    def _on_redo(self, state: ControlState) -> None:
+        """Trigger redo on the active Labels layer."""
+        if state.value == 0:  # Ignore button release
+            return
+        if self._labels_layer is None:
+            return
+        self._labels_layer.redo()
 
     # --- Zoom ---
 

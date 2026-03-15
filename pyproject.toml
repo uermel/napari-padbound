@@ -54,9 +54,9 @@ dev = [
 napari-padbound = "napari_padbound:napari.yaml"
 
 [project.urls]
-"Bug Tracker" = "https://github.com/your-username/napari-padbound/issues"
-"Documentation" = "https://github.com/your-username/napari-padbound#README.md"
-"Source Code" = "https://github.com/your-username/napari-padbound"
+"Bug Tracker" = "https://github.com/uermel/napari-padbound/issues"
+"Documentation" = "https://github.com/uermel/napari-padbound#README.md"
+"Source Code" = "https://github.com/uermel/napari-padbound"
 
 [tool.hatch.version]
 source = "vcs"

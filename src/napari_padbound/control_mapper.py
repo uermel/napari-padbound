@@ -2,23 +2,33 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from padbound import Controller
     from padbound.controls import ControlDefinition
 
 
-@dataclass
-class ControlMapping:
+class ControlMapping(BaseModel):
     """Mapping of physical controls to napari features."""
 
     coarse_slice: str | None = None  # control_id for coarse slice
     fine_slice: str | None = None  # control_id for fine slice
     zoom: str | None = None  # control_id for zoom
     brush_size: str | None = None  # control_id for brush size
-    label_pads: list[str] = field(default_factory=list)  # control_ids for labels
+    label_pads: list[str] = Field(default_factory=list)  # control_ids for labels
+
+    # Navigation button mappings
+    slice_up: str | None = None  # +1 slice step
+    slice_down: str | None = None  # -1 slice step
+    roll_left: str | None = None  # Roll dims left
+    roll_right: str | None = None  # Roll dims right
+
+    # Transport button mappings
+    undo: str | None = None  # Undo action (stop button)
+    redo: str | None = None  # Redo action (play button)
 
 
 class ControlMapper:
@@ -80,6 +90,34 @@ class ControlMapper:
         # Assign pads for label selection
         mapping.label_pads = [p.control_id for p in pads]
 
+        # Discover navigation buttons (for slice stepping and dim rolling)
+        nav_controls = [
+            c for c in self.controls
+            if c.category == "navigation" and c.bank_id == primary_bank
+        ]
+        for c in nav_controls:
+            cid = c.control_id.lower()
+            if cid in ("up", "nav_up") and mapping.slice_up is None:
+                mapping.slice_up = c.control_id
+            elif cid in ("down", "nav_down") and mapping.slice_down is None:
+                mapping.slice_down = c.control_id
+            elif cid in ("left", "nav_left") and mapping.roll_left is None:
+                mapping.roll_left = c.control_id
+            elif cid in ("right", "nav_right") and mapping.roll_right is None:
+                mapping.roll_right = c.control_id
+
+        # Discover transport buttons (for undo/redo)
+        transport_controls = [
+            c for c in self.controls
+            if c.category == "transport" and c.bank_id == primary_bank
+        ]
+        for c in transport_controls:
+            cid = c.control_id.lower()
+            if cid == "stop" and mapping.undo is None:
+                mapping.undo = c.control_id
+            elif cid == "play" and mapping.redo is None:
+                mapping.redo = c.control_id
+
         return mapping
 
     def get_mapping_info(self) -> str:
@@ -101,5 +139,17 @@ class ControlMapper:
             lines.append(f"Zoom: {mapping.zoom}")
         if mapping.label_pads:
             lines.append(f"Label pads: {len(mapping.label_pads)} pads")
+        if mapping.slice_up:
+            lines.append(f"Slice up: {mapping.slice_up}")
+        if mapping.slice_down:
+            lines.append(f"Slice down: {mapping.slice_down}")
+        if mapping.roll_left:
+            lines.append(f"Roll left: {mapping.roll_left}")
+        if mapping.roll_right:
+            lines.append(f"Roll right: {mapping.roll_right}")
+        if mapping.undo:
+            lines.append(f"Undo: {mapping.undo}")
+        if mapping.redo:
+            lines.append(f"Redo: {mapping.redo}")
 
         return "\n".join(lines) if lines else "No controls mapped"
