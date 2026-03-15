@@ -30,7 +30,7 @@ class ViewerController:
     Features gracefully degrade based on controller capabilities.
     """
 
-    MIN_ZOOM = 0.1
+    MIN_ZOOM = 0.01
     MAX_ZOOM = 10.0
     MIN_BRUSH_SIZE = 1
     MAX_BRUSH_SIZE = 100

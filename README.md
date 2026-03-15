@@ -15,7 +15,7 @@ Use physical pads, knobs, faders, and buttons to navigate slices, select labels,
 - **Smart control mapping** &mdash; Automatically assigns available hardware controls to napari functions based on controller capabilities
 - **Slice navigation** &mdash; Coarse and fine navigation through 3D+ data volumes via faders or knobs
 - **Slice stepping** &mdash; Increment/decrement slices one at a time via navigation buttons
-- **Zoom control** &mdash; Logarithmic zoom mapping (0.1x&ndash;10x) via knobs or faders
+- **Zoom control** &mdash; Logarithmic zoom mapping (0.01x&ndash;10x) via knobs or faders
 - **Brush size control** &mdash; Logarithmic brush size adjustment (1&ndash;100px) for label painting
 - **Label selection** &mdash; Select labels by pressing pads; pad 1 is the eraser, remaining pads map to labels 1, 2, 3, ...
 - **LED color feedback** &mdash; Pads display actual label colors from the napari colormap, with the selected label pulsing (on RGB-capable controllers)
@@ -45,7 +45,7 @@ The plugin automatically discovers available controls and assigns them by priori
 1. First control &rarr; **Coarse slice** (full range of the data volume)
 2. Second control &rarr; **Fine slice** (&plusmn;64 slices around the coarse position)
 3. Third control &rarr; **Brush size** (logarithmic, 1&ndash;100px)
-4. Fourth control &rarr; **Zoom** (logarithmic, 0.1x&ndash;10x)
+4. Fourth control &rarr; **Zoom** (logarithmic, 0.01x&ndash;10x)
 
 **Pads** &rarr; **Label selection** (pad 1 = eraser, pad 2+ = labels)
 
