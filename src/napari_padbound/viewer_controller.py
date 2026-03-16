@@ -116,6 +116,7 @@ class ViewerController:
         """Connect to napari layer events."""
         self.viewer.layers.events.inserted.connect(self._on_layer_inserted)
         self.viewer.layers.selection.events.changed.connect(self._on_selection_changed)
+        self.viewer.dims.events.order.connect(self._on_dims_order_changed)
 
     # --- Slice navigation ---
 
@@ -236,10 +237,15 @@ class ViewerController:
             # Roll left: first element moves to end
             new_order = current_order[1:] + [current_order[0]]
 
+        # Setting order triggers _on_dims_order_changed which updates slice_axis
         self.viewer.dims.order = tuple(new_order)
 
-        # Update slice axis to first non-displayed dimension
-        self.slice_axis = new_order[0]
+    def _on_dims_order_changed(self, event) -> None:
+        """Handle dimension order changes (from napari UI or MIDI roll buttons)."""
+        order = list(self.viewer.dims.order)
+        if len(order) < 3:
+            return
+        self.slice_axis = order[0]
         self._update_slice_range()
 
     # --- Undo/Redo ---
