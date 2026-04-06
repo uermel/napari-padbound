@@ -297,9 +297,7 @@ class ViewerController:
             return
 
         # Check for custom layer actions (generic hook for any plugin)
-        actions = getattr(self._labels_layer, "metadata", {}).get(
-            "padbound_actions", {}
-        )
+        actions = getattr(self._labels_layer, "metadata", {}).get("padbound_actions", {})
         if label_index in actions:
             if state.value > 0:  # Only trigger on press, not release
                 actions[label_index]()

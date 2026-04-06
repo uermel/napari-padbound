@@ -91,10 +91,7 @@ class ControlMapper:
         mapping.label_pads = [p.control_id for p in pads]
 
         # Discover navigation buttons (for slice stepping and dim rolling)
-        nav_controls = [
-            c for c in self.controls
-            if c.category == "navigation" and c.bank_id == primary_bank
-        ]
+        nav_controls = [c for c in self.controls if c.category == "navigation" and c.bank_id == primary_bank]
         for c in nav_controls:
             cid = c.control_id.lower()
             if cid in ("up", "nav_up") and mapping.slice_up is None:
@@ -107,10 +104,7 @@ class ControlMapper:
                 mapping.roll_right = c.control_id
 
         # Discover transport buttons (for undo/redo)
-        transport_controls = [
-            c for c in self.controls
-            if c.category == "transport" and c.bank_id == primary_bank
-        ]
+        transport_controls = [c for c in self.controls if c.category == "transport" and c.bank_id == primary_bank]
         for c in transport_controls:
             cid = c.control_id.lower()
             if cid == "stop" and mapping.undo is None:
