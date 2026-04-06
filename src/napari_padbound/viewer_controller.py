@@ -288,9 +288,22 @@ class ViewerController:
     # --- Label selection ---
 
     def _on_label_select(self, state: ControlState, label_index: int) -> None:
-        """Handle pad press - select the corresponding label."""
-        print("_on_label_select", label_index)
+        """Handle pad press - select the corresponding label.
+
+        If the layer defines padbound_actions in its metadata, mapped indices
+        trigger the action callback instead of changing selected_label.
+        """
         if self._labels_layer is None:
+            return
+
+        # Check for custom layer actions (generic hook for any plugin)
+        actions = getattr(self._labels_layer, "metadata", {}).get(
+            "padbound_actions", {}
+        )
+        if label_index in actions:
+            if state.value > 0:  # Only trigger on press, not release
+                actions[label_index]()
+            self._update_label_feedback()
             return
 
         self._labels_layer.selected_label = label_index
